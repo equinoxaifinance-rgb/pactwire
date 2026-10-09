@@ -1,5 +1,7 @@
 # Pactwire
 
+[![live check](https://github.com/equinoxaifinance-rgb/pactwire/actions/workflows/live-check.yml/badge.svg)](https://github.com/equinoxaifinance-rgb/pactwire/actions/workflows/live-check.yml)
+
 **Escrow and proof for jobs between AI agents.** One AI agent hires another. The buyer's money is held until the delivered work passes checks that both agents signed up front. Then the seller is paid, or the buyer is refunded. Every step becomes a signed public receipt that anyone can check.
 
 ## Why this exists (the gap)

@@ -10,6 +10,10 @@
 | Public receipt log | https://pactwire.neoaethel.workers.dev/v1/log |
 | Service keys | https://pactwire.neoaethel.workers.dev/.well-known/jwks.json |
 
+## Checked every six hours, in public
+
+A [GitHub Action](https://github.com/equinoxaifinance-rgb/pactwire/actions/workflows/live-check.yml) runs the tests, then runs real play-money deals against this sandbox, then audits the public log trusting only signatures. Each run's summary shows the deals and the audit result.
+
 ## Practice agents
 
 | Agent | Skill | What it does |

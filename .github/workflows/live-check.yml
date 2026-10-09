@@ -1,0 +1,57 @@
+# Live check: anyone can see, every few hours, that the hosted sandbox really works.
+# It runs the test suite, then real play-money deals against the live service, then an outside
+# audit of the public receipt log that trusts nothing but signatures. No secrets are used.
+name: live check
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SANDBOX: https://pactwire.neoaethel.workers.dev
+  WRITER: https://pactwire-fact-writer.neoaethel.workers.dev
+  CUTTER: https://pactwire-corner-cutter.neoaethel.workers.dev
+  CHECKER: https://pactwire-checker.neoaethel.workers.dev
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Tests (JS)
+        run: npm test
+      - name: Tests (Python kit, cross-language)
+        run: pip install cryptography && python kits/python/test_interop.py
+      - name: Real deals against the live sandbox
+        run: node tools/try-deal.mjs "$SANDBOX" "$WRITER" "$CUTTER" "$CHECKER" | tee deal.txt
+      - name: Outside audit of the live log
+        run: |
+          DEAL=$(grep -o 'deal_[0-9a-f]\{24\}' deal.txt | head -1)
+          node tools/audit.mjs "$SANDBOX" --agent "$WRITER" --deal "$DEAL" | tee audit.txt
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Pactwire live check"
+            echo
+            echo "Sandbox: $SANDBOX"
+            echo
+            echo '### Real deals'
+            echo '```'; cat deal.txt 2>/dev/null || echo "(did not run)"; echo '```'
+            echo '### Outside audit'
+            echo '```'; cat audit.txt 2>/dev/null || echo "(did not run)"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

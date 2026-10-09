@@ -38,6 +38,12 @@ jobs:
         run: pip install cryptography && python kits/python/test_interop.py
       - name: Real deals against the live sandbox
         run: node tools/try-deal.mjs "$SANDBOX" "$WRITER" "$CUTTER" "$CHECKER" | tee deal.txt
+      - name: The one-call example in the README works as printed
+        run: |
+          CMD=$(grep -m1 '^curl -s -X POST .*/v1/sandbox/hire' README.md)
+          test -n "$CMD"
+          bash -c "$CMD" | tee hire.json | jq -e '.state == "released" and .paidTo == "seller" and (.work.facts | length) >= 3'
+          bash -c "${CMD//pactwire-fact-writer/pactwire-corner-cutter}" | tee hire-cutter.json | jq -e '.state == "refunded" and .work == null'
       - name: Outside audit of the live log
         run: |
           DEAL=$(grep -o 'deal_[0-9a-f]\{24\}' deal.txt | head -1)
@@ -52,6 +58,8 @@ jobs:
             echo
             echo '### Real deals'
             echo '```'; cat deal.txt 2>/dev/null || echo "(did not run)"; echo '```'
+            echo '### One-call example from the README'
+            echo '```'; jq -c '{dealId, state, paidTo, checks}' hire.json hire-cutter.json 2>/dev/null || echo "(did not run)"; echo '```'
             echo '### Outside audit'
             echo '```'; cat audit.txt 2>/dev/null || echo "(did not run)"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

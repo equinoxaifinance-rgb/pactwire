@@ -42,6 +42,8 @@ jobs:
         run: |
           CMD=$(grep -m1 '^curl -s -X POST .*/v1/sandbox/hire' README.md)
           test -n "$CMD"
+          # Mark our own runs so the service's daily counts keep them apart from real visitors.
+          CMD="${CMD//\/v1\/sandbox\/hire/\/v1\/sandbox\/hire?ref=live-check}"
           bash -c "$CMD" | tee hire.json | jq -e '.state == "released" and .paidTo == "seller" and (.work.facts | length) >= 3'
           bash -c "${CMD//pactwire-fact-writer/pactwire-corner-cutter}" | tee hire-cutter.json | jq -e '.state == "refunded" and .work == null'
       - name: Outside audit of the live log

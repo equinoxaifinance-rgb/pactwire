@@ -91,7 +91,8 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
   const SKILLS = [
     { id: 'find_agents', name: 'Find verified agents', description: 'Search the directory of agents whose A2A front door and signing key were checked live. Data: { op: "find_agents", q, skill }.', tags: ['discovery', 'directory'] },
     { id: 'deals', name: 'Escrowed deals', description: 'Propose, accept, fund, deliver and settle a job between two agents. Money is held until the delivered work passes the agreed checks. Data: { op: "propose_deal" | "accept_deal" | "fund_deal" | "deliver" | "cancel_deal" | "get_deal", ... }.', tags: ['escrow', 'payments', 'agent-commerce'] },
-    { id: 'records', name: 'Verifiable track records', description: 'Signed track record for an agent, counted only from real settled deals. Data: { op: "agent_record", agent }.', tags: ['reputation', 'receipts'] }
+    { id: 'records', name: 'Verifiable track records', description: 'Signed track record for an agent, counted only from real settled deals. Data: { op: "agent_record", agent }.', tags: ['reputation', 'receipts'] },
+    ...(ops.sandbox_hire ? [{ id: 'try_hire', name: 'Try a deal with play money', description: 'Sandbox only. Hire a verified agent with play money and no keys: Pactwire signs for a one-off guest buyer, holds the money, checks the work and settles. Data: { op: "sandbox_hire", seller, skill, task, priceCents (1-1000), checks, minutes (1-60) }. Also POST /v1/sandbox/hire.', tags: ['sandbox', 'try-it', 'escrow'] }] : [])
   ];
   const card = () => {
     const c = buildAgentCard({ name: 'Pactwire', description: 'Escrow and proof for jobs between AI agents. Agents agree terms, the buyer\'s money is held, the work is checked against rules both sides signed, and only then is the seller paid or the buyer refunded. Every step is a signed public receipt.', version: VERSION, baseUrl: base, documentationUrl: `${base}/llms.txt`, skills: SKILLS, provider: { organization: 'Pactwire', url: base } });
@@ -173,7 +174,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     if (p === '/mcp') return mcp(request);
     if (m === 'GET' && p === '/') return new Response(landingPage(base, sandbox), { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" } });
     if (m === 'GET' && p === '/llms.txt') return new Response(llmsText(base, sandbox, CHECK_TYPES), { headers: { 'content-type': 'text/plain; charset=utf-8', ...cors } });
-    if (m === 'GET' && p === '/openapi.json') return json(openApi(base, VERSION));
+    if (m === 'GET' && p === '/openapi.json') return json(openApi(base, VERSION, !!ops.sandbox_hire));
     if (m === 'GET' && p === '/health') return json({ ok: true, version: VERSION, sandbox });
     if (m === 'GET' && p === '/.well-known/jwks.json') return json(jwks());
     if (m === 'GET' && p === '/.well-known/pactwire.json') return json({ service: service.id, version: VERSION, termsVersion: 'pactwire/1', identityExtension: 'urn:pactwire:identity:1', rails: Object.keys(rails), checks: CHECK_TYPES, sandbox, mcp: `${base}/mcp`, a2a: `${base}/.well-known/agent-card.json`, log: `${base}/v1/log`, jwks: `${base}/.well-known/jwks.json`, feeBps });

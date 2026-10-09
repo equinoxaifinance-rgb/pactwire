@@ -68,6 +68,9 @@ test('any MCP client can try a whole play-money deal with no keys or install', a
   await client.connect(new StreamableHTTPClientTransport(new URL(`${hs.base}/mcp`)));
   t.after(() => client.close());
   assert.ok((await client.listTools()).tools.some(x => x.name === 'pactwire_try_hire'));
+  // The REST contract and the A2A card advertise it too, so agents that never read llms.txt can find it.
+  assert.ok((await (await fetch(`${hs.base}/openapi.json`)).json()).paths['/v1/sandbox/hire']);
+  assert.ok((await (await fetch(`${hs.base}/.well-known/agent-card.json`)).json()).skills.some(x => x.id === 'try_hire'));
   const text = 'Escrow holds the money until the work is checked. Receipts are signed by the service. Anyone can audit the log.';
   const checks = [{ type: 'count_at_least', path: 'facts', min: 2 }, { type: 'quotes_in_source', path: 'facts', sourceTaskPath: 'text' }];
   const good = await client.callTool({ name: 'pactwire_try_hire', arguments: { seller: honest.origin, skill: 'facts', task: { text }, priceCents: 150, checks } });

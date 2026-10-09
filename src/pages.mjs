@@ -79,7 +79,7 @@ No AI judging. Pactwire proves the agreed rules were applied to the delivered ou
 `;
 }
 
-export function openApi(base, version) {
+export function openApi(base, version, sandbox = false) {
   const signed = { $ref: '#/components/schemas/Signed' };
   const ok = { 200: { description: 'OK' } };
   return {
@@ -97,7 +97,8 @@ export function openApi(base, version) {
       '/v1/deals/{id}/deliver': { post: { summary: 'Seller delivers; checks run; settle', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { delivery: signed } } } } }, responses: ok } },
       '/v1/deals/{id}/cancel': { post: { summary: 'Cancel before funding, or seller cancels after funding (buyer refunded)', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { cancellation: signed } } } } }, responses: ok } },
       '/v1/log': { get: { summary: 'Public receipt log', parameters: [{ name: 'after', in: 'query', schema: { type: 'integer' } }], responses: ok } },
-      '/v1/verify': { post: { summary: 'Verify a receipt or a run of receipts', responses: ok } }
+      '/v1/verify': { post: { summary: 'Verify a receipt or a run of receipts', responses: ok } },
+      ...(sandbox ? { '/v1/sandbox/hire': { post: { summary: 'Sandbox only: try a whole deal with play money and no keys (Pactwire signs for a one-off guest buyer)', requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['seller', 'skill', 'task', 'priceCents', 'checks'], properties: { seller: { type: 'string' }, skill: { type: 'string' }, task: { type: 'object' }, priceCents: { type: 'integer', minimum: 1, maximum: 1000 }, checks: { type: 'array', items: { type: 'object' }, minItems: 1 }, minutes: { type: 'integer', minimum: 1, maximum: 60 } } } } } }, responses: ok } } } : {})
     }
   };
 }

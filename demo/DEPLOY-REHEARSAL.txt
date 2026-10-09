@@ -1,0 +1,28 @@
+# Deploy rehearsal, 2026-10-08T11:45:17Z
+# tools/deploy.mjs run with a stand-in for wrangler that records each command and answers the way real wrangler does.
+# It proves the script's order and parsing. The live check and audit are skipped here and run for real on deploy.
+
+$ npx wrangler d1 list --json
+$ npx wrangler d1 create pactwire
+$ npx wrangler d1 migrations apply pactwire --remote
+$ npx wrangler deploy
+$ npx wrangler secret put PACTWIRE_PRIVATE_JWK
+$ npx wrangler deploy --var BASE_URL:https://pactwire.b-example.workers.dev
+$ npx wrangler deploy -c wrangler.demo-agents.jsonc --env writer --var ORIGIN:https://pactwire-fact-writer.b-example.workers.dev
+$ npx wrangler secret put AGENT_PRIVATE_JWK -c wrangler.demo-agents.jsonc --env writer
+$ npx wrangler deploy -c wrangler.demo-agents.jsonc --env cutter --var ORIGIN:https://pactwire-corner-cutter.b-example.workers.dev
+$ npx wrangler secret put AGENT_PRIVATE_JWK -c wrangler.demo-agents.jsonc --env cutter
+$ npx wrangler deploy -c wrangler.demo-agents.jsonc --env checker --var ORIGIN:https://pactwire-checker.b-example.workers.dev
+$ npx wrangler secret put AGENT_PRIVATE_JWK -c wrangler.demo-agents.jsonc --env checker
+
+Live check:
+$ node tools/try-deal.mjs https://pactwire.b-example.workers.dev https://pactwire-fact-writer.b-example.workers.dev https://pactwire-corner-cutter.b-example.workers.dev https://pactwire-checker.b-example.workers.dev
+$ node tools/audit.mjs https://pactwire.b-example.workers.dev --agent https://pactwire-fact-writer.b-example.workers.dev
+
+Pactwire: https://pactwire.b-example.workers.dev
+Agent card: https://pactwire.b-example.workers.dev/.well-known/agent-card.json
+MCP: https://pactwire.b-example.workers.dev/mcp
+Practice agents: https://pactwire-fact-writer.b-example.workers.dev, https://pactwire-corner-cutter.b-example.workers.dev, https://pactwire-checker.b-example.workers.dev
+
+# wrangler.jsonc after: "database_id": "0c1d2e3f-1111-2222-3333-444455556666"
+# key file: -rw------- .data/deploy-keys.json

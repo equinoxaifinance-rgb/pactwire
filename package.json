@@ -1,0 +1,75 @@
+{
+  "name": "pactwire",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Escrow and proof for paid jobs between AI agents: money is held until the work passes checks both agents signed, then released or refunded, with a public signed receipt log. Speaks A2A and MCP.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "demo": "node demo/run-demo.mjs",
+    "dev": "node tools/make-dev-vars.mjs && wrangler d1 migrations apply pactwire --local && wrangler dev --local --port 8799",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "doctor": "node tools/doctor-cli.mjs",
+    "audit": "node tools/audit.mjs",
+    "wallet": "node bin/pactwire-wallet.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "1.3.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "express": "5.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.131.0"
+  },
+  "exports": {
+    ".": "./src/agent-kit.mjs",
+    "./crypto": "./src/crypto.mjs",
+    "./receipts": "./src/receipts.mjs",
+    "./checks": "./src/checks.mjs",
+    "./a2a": "./src/a2a-lite.mjs",
+    "./a2a-client": "./src/a2a-client.mjs",
+    "./doctor": "./src/doctor.mjs",
+    "./server": "./src/app.mjs",
+    "./audit": "./src/audit.mjs",
+    "./wallet": "./src/wallet-mcp.mjs"
+  },
+  "files": [
+    "src/",
+    "migrations/",
+    "SPEC.md",
+    "README.md",
+    "bin/",
+    "docs/",
+    "examples/",
+    "demo/sdk-seller.mjs",
+    "tools/audit.mjs",
+    "tools/doctor-cli.mjs",
+    "tools/try-deal.mjs",
+    "kits/python/pactwire_kit.py",
+    "kits/python/README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "a2a",
+    "mcp",
+    "ai-agents",
+    "agent-payments",
+    "escrow",
+    "agent-to-agent",
+    "receipts",
+    "ed25519"
+  ],
+  "license": "MIT",
+  "bin": {
+    "pactwire": "bin/pactwire-wallet.mjs",
+    "pactwire-wallet": "bin/pactwire-wallet.mjs"
+  },
+  "mcpName": "io.github.equinoxaifinance-rgb/pactwire",
+  "author": "Pactwire authors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/equinoxaifinance-rgb/pactwire.git"
+  }
+}

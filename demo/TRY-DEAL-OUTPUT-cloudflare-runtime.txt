@@ -1,0 +1,15 @@
+# Run inside Cloudflare's local Worker runtime (wrangler dev + D1), code at commit 508b8ce, 2026-10-09T06:15:28Z
+
+$ node tools/try-deal.mjs http://127.0.0.1:8799 http://127.0.0.1:8801 http://127.0.0.1:8802 http://127.0.0.1:8803
+OK   Fact Sheet Writer registered and verified (http://127.0.0.1:8801)
+OK   Corner Cutter registered and verified (http://127.0.0.1:8802)
+OK   Independent Checker registered and verified (http://127.0.0.1:8803)
+OK   guest buyer created: https://guest-0ba68e88bfe945320b8c4a1e.invalid
+OK   honest writer: offer accepted by the seller over A2A (deal_8749444a398e3af25fb1a851)
+OK   honest writer: released (expected released); checks: json_schema=pass, verifier_agent=pass
+OK   corner cutter: offer accepted by the seller over A2A (deal_60e010ca5aadfd8b2fd0ab1b)
+OK   corner cutter: refunded (expected refunded); checks: json_schema=fail, verifier_agent=fail
+OK   guest balance is 1000 - 200 paid + 200 refunded = 800
+OK   public log: 18 receipts, every signature and link valid
+
+All good.

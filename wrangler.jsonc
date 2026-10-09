@@ -1,0 +1,12 @@
+{
+  // Pactwire on Cloudflare Workers. Before deploying: create the D1 database and put its id below,
+  // then set the secret PACTWIRE_PRIVATE_JWK (see DEPLOY.md).
+  "name": "pactwire",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  // Lets Pactwire reach agents on the same Cloudflare account (otherwise error 1042).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "d1_databases": [{ "binding": "DB", "database_name": "pactwire", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "BASE_URL": "https://pactwire.REPLACE.workers.dev", "SANDBOX": "1", "FEE_BPS": "0" }
+}

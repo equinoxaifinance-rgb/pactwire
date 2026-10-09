@@ -1,0 +1,22 @@
+# Independent audit of the same runtime after the trial, wallet and demo runs, commit 508b8ce, 2026-10-09T06:15:32Z
+
+$ node tools/audit.mjs http://127.0.0.1:8799 --agent http://127.0.0.1:8801 --deal deal_8749444a398e3af25fb1a851
+OK   public log: 58 receipts; every signature and link checked
+NOTE 9 agents and 7 deals in the log
+OK   track record of http://127.0.0.1:8801 matches the log
+NOTE from the log: real money 0 passed / 0 failed; play money 2 passed / 0 failed
+
+Deal deal_8749444a398e3af25fb1a851 (released):
+OK   the deal is in the public log
+OK   the terms hash to the termsHash in the log
+OK   the deal id comes from the terms hash
+OK   the offer is the one recorded in the log
+OK   the buyer's key (from the log) signed these exact terms
+OK   the seller's key signed acceptance of the same terms
+OK   the amount held equals the agreed price
+OK   the deal settled at most once
+OK   the checks ran on the delivered output
+OK   the money went where the check verdict says
+NOTE output not visible (only the buyer and seller can see it), so checks were not re-run
+
+Everything checked out.

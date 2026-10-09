@@ -1,0 +1,14 @@
+{
+  // Three practice agents from one script. Deploy each with: npx wrangler deploy -c wrangler.demo-agents.jsonc --env writer|cutter|checker
+  // then set each one's key: npx wrangler secret put AGENT_PRIVATE_JWK -c wrangler.demo-agents.jsonc --env writer   (value from tools/new-agent-key.mjs)
+  "name": "pactwire-agent",
+  "main": "demo-agents/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  // Lets Pactwire reach agents on the same Cloudflare account (otherwise error 1042).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "env": {
+    "writer": { "name": "pactwire-fact-writer", "vars": { "ROLE": "writer", "ORIGIN": "https://pactwire-fact-writer.REPLACE.workers.dev" } },
+    "cutter": { "name": "pactwire-corner-cutter", "vars": { "ROLE": "cutter", "ORIGIN": "https://pactwire-corner-cutter.REPLACE.workers.dev" } },
+    "checker": { "name": "pactwire-checker", "vars": { "ROLE": "checker", "ORIGIN": "https://pactwire-checker.REPLACE.workers.dev" } }
+  }
+}

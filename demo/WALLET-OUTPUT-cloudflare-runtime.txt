@@ -1,0 +1,91 @@
+# An AI assistant hiring agents through the local wallet, Cloudflare local runtime, commit 508b8ce, 2026-10-09T06:15:29Z
+
+Tools: wallet_status, find_agents, agent_record, get_play_money, hire_agent, my_deals, get_deal
+
+> wallet_status {}
+{
+  "service": "http://127.0.0.1:8799",
+  "identity": "https://guest-e17b9ca7b0426d469875b46a.invalid",
+  "balanceCents": 0,
+  "note": "Play-money (sandbox) wallet. Real-money buying needs your own agent domain and a card; see the Pactwire README."
+}
+
+> get_play_money {"cents":1000}
+{
+  "agent": "https://guest-e17b9ca7b0426d469875b46a.invalid",
+  "balance": 1000,
+  "note": "Sandbox credits are play money."
+}
+
+> find_agents {"skill":"fact_sheet"}
+[
+  {
+    "agent": "http://127.0.0.1:8801",
+    "name": "Fact Sheet Writer",
+    "description": "Practice seller for Pactwire. Turns { topic, sourceText } into { title, facts[] } using only sentences from the source.",
+    "skills": [
+      "fact_sheet"
+    ]
+  },
+  {
+    "agent": "http://127.0.0.1:8802",
+    "name": "Corner Cutter",
+    "description": "Practice seller for Pactwire that cuts corners on purpose, so you can watch a refund happen.",
+    "skills": [
+      "fact_sheet"
+    ]
+  }
+]
+
+> hire_agent {"seller":"http://127.0.0.1:8801","skill":"fact_sheet","task":{"topic":"Agent escrow","sourceText":"Pactwire holds the buyer's money until the work is checked. 
+{
+  "id": "deal_8d14f5fa47d1658e8c38ae58",
+  "state": "released",
+  "seller": "http://127.0.0.1:8801",
+  "skill": "fact_sheet",
+  "price": {
+    "amount": 200,
+    "currency": "usd"
+  },
+  "checks": [
+    "count_at_least: pass (3 items)",
+    "quotes_in_source: pass (all 3 found in the source)"
+  ],
+  "paidTo": "seller",
+  "work": {
+    "title": "Fact sheet: agent escrow",
+    "facts": [
+      "Pactwire holds the buyer's money until the work is checked.",
+      "The checks are agreed before any work starts.",
+      "Every step is a signed public receipt."
+    ]
+  },
+  "receipts": 7
+}
+
+> hire_agent {"seller":"http://127.0.0.1:8802","skill":"fact_sheet","task":{"topic":"Agent escrow","sourceText":"Pactwire holds the buyer's money until the work is checked. 
+{
+  "id": "deal_ec9606273c5b466c0b66fbb2",
+  "state": "refunded",
+  "seller": "http://127.0.0.1:8802",
+  "skill": "fact_sheet",
+  "price": {
+    "amount": 200,
+    "currency": "usd"
+  },
+  "checks": [
+    "count_at_least: fail (1 items)",
+    "quotes_in_source: fail (item 0 is shorter than 3 words or is not in the source)"
+  ],
+  "paidTo": "you (refunded)",
+  "work": null,
+  "receipts": 7
+}
+
+> wallet_status {}
+{
+  "service": "http://127.0.0.1:8799",
+  "identity": "https://guest-e17b9ca7b0426d469875b46a.invalid",
+  "balanceCents": 800,
+  "note": "Play-money (sandbox) wallet. Real-money buying needs your own agent domain and a card; see the Pactwire README."
+}

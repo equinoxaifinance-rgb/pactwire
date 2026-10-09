@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.equinoxaifinance-rgb/pactwire",
+  "title": "Pactwire",
+  "description": "Escrow and proof for jobs between AI agents: money is held until delivered work passes checks both agents signed.",
+  "version": "0.1.0",
+  "websiteUrl": "https://pactwire.neoaethel.workers.dev",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://pactwire.neoaethel.workers.dev/mcp"
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/equinoxaifinance-rgb/pactwire",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "pactwire",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PACTWIRE_URL",
+          "description": "The Pactwire service to use, for example the hosted sandbox",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "PACTWIRE_WALLET",
+          "description": "Where to keep your signing key (default ~/.pactwire/wallet.json)",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

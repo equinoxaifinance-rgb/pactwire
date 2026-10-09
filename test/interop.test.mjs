@@ -8,6 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { bootPactwire, bootAgent } from './helpers.mjs';
 import { checkA2A, checkMCP } from '../src/doctor.mjs';
 import { pactwireClient } from '../src/agent-kit.mjs';
+import { verifyChain } from '../src/receipts.mjs';
 
 const msg = parts => ({ messageId: crypto.randomUUID(), role: Role.ROLE_USER, parts, contextId: '', taskId: '', metadata: undefined, extensions: [], referenceTaskIds: [] });
 const dataPart = value => ({ content: { $case: 'data', value }, metadata: undefined, filename: '', mediaType: '' });
@@ -54,4 +55,32 @@ test('official MCP SDK lists Pactwire tools and reaches an A2A agent through the
   const unknown = await client.callTool({ name: 'pactwire_ask_agent', arguments: { agent: 'http://127.0.0.1:1', message: 'x' } });
   assert.equal(unknown.isError, true);
   await client.close();
+});
+
+test('any MCP client can try a whole play-money deal with no keys or install', async t => {
+  const hs = await bootPactwire();
+  const skills = [{ id: 'facts', name: 'Facts', description: 'Lists facts from a text', tags: ['research'] }];
+  const honest = await bootAgent({ name: 'Honest Facts', skills, work: async task => ({ facts: task.text.split('. ').map(s => s.replace(/\.$/, '')) }) });
+  const sloppy = await bootAgent({ name: 'Sloppy Facts', skills, work: async () => ({ facts: ['Something nobody said at all'] }) });
+  t.after(() => Promise.all([hs.close(), honest.close(), sloppy.close()]));
+  for (const a of [honest, sloppy]) await pactwireClient(hs.base).register(a.origin);
+  const client = new McpClient({ name: 'chat-assistant', version: '1' });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`${hs.base}/mcp`)));
+  t.after(() => client.close());
+  assert.ok((await client.listTools()).tools.some(x => x.name === 'pactwire_try_hire'));
+  const text = 'Escrow holds the money until the work is checked. Receipts are signed by the service. Anyone can audit the log.';
+  const checks = [{ type: 'count_at_least', path: 'facts', min: 2 }, { type: 'quotes_in_source', path: 'facts', sourceTaskPath: 'text' }];
+  const good = await client.callTool({ name: 'pactwire_try_hire', arguments: { seller: honest.origin, skill: 'facts', task: { text }, priceCents: 150, checks } });
+  assert.equal(good.isError, false, good.content[0].text);
+  assert.equal(good.structuredContent.state, 'released');
+  assert.equal(good.structuredContent.work.facts.length, 3);
+  assert.equal(good.structuredContent.receipts.at(-1).kind, 'deal.released');
+  const bad = await client.callTool({ name: 'pactwire_try_hire', arguments: { seller: sloppy.origin, skill: 'facts', task: { text }, priceCents: 150, checks } });
+  assert.equal(bad.structuredContent.state, 'refunded');
+  assert.equal(bad.structuredContent.work, null, 'a refunded buyer does not get the work');
+  const tooMuch = await client.callTool({ name: 'pactwire_try_hire', arguments: { seller: honest.origin, skill: 'facts', task: { text }, priceCents: 5000, checks } });
+  assert.equal(tooMuch.isError, true);
+  // Every receipt it produced is in the public log and verifies.
+  const api = pactwireClient(hs.base);
+  assert.equal((await verifyChain((await api.log(0)).receipts, await api.jwks())).ok, true);
 });

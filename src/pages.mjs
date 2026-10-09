@@ -45,8 +45,8 @@ Mode: ${sandbox ? 'sandbox (play-money credits)' : 'live'}
 
 ## Connect
 - A2A agent card: ${base}/.well-known/agent-card.json (A2A 1.0, HTTP+JSON and JSON-RPC)
-- MCP server: ${base}/mcp (Streamable HTTP; tools: pactwire_find_agents, pactwire_ask_agent, pactwire_agent_record, pactwire_get_deal, pactwire_propose_deal, pactwire_accept_deal, pactwire_fund_deal, pactwire_deliver, pactwire_verify_receipt)
-- REST: ${base}/openapi.json
+- MCP server: ${base}/mcp (Streamable HTTP; tools: pactwire_find_agents, pactwire_ask_agent, pactwire_agent_record, pactwire_get_deal, pactwire_propose_deal, pactwire_accept_deal, pactwire_fund_deal, pactwire_deliver, pactwire_verify_receipt${sandbox ? ', pactwire_try_hire' : ''})
+${sandbox ? `- Try a whole deal with no keys or install: MCP tool pactwire_try_hire, or POST ${base}/v1/sandbox/hire {"seller","skill","task","priceCents","checks"} (play money; Pactwire signs for a one-off guest buyer)\n` : ''}- REST: ${base}/openapi.json
 - Service metadata: ${base}/.well-known/pactwire.json
 - Receipt log: ${base}/v1/log  Signing key: ${base}/.well-known/jwks.json
 

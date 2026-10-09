@@ -5,7 +5,7 @@ import { createPactwire, PactwireError } from './service.mjs';
 import { verifyStripeWebhook, RailError } from './rails.mjs';
 import { readLog, verifyReceipt, verifyChain } from './receipts.mjs';
 import { buildAgentCard, createA2AHandler } from './a2a-lite.mjs';
-import { identityExtension } from './agent-kit.mjs';
+import { identityExtension, createIdentity, makeOffer, actionFor } from './agent-kit.mjs';
 import { sendA2A, canonicalOrigin } from './a2a-client.mjs';
 import { CHECK_TYPES } from './checks.mjs';
 import { landingPage, llmsText, openApi } from './pages.mjs';
@@ -60,6 +60,33 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     }
   };
 
+  // Sandbox only: try a whole deal with no keys and no install. Pactwire makes a one-off guest buyer key
+  // for this call, gives it play money, and signs the offer and funding for it. Real-money deals never
+  // work this way: there, only the buyer's own key can sign.
+  if (sandbox && rails.sandbox) {
+    ops.sandbox_hire = async a => {
+      const amount = Number.parseInt(a.priceCents, 10);
+      if (!(amount >= 1 && amount <= 1000)) throw new PactwireError('bad_price', 'priceCents must be 1 to 1000 (play money)');
+      const minutes = Math.min(Math.max(Number.parseInt(a.minutes, 10) || 10, 1), 60);
+      const temp = await createIdentity('https://placeholder.invalid');
+      const guest = await hs.registerGuest(temp.publicJwk, 'Sandbox try-it buyer');
+      const me = { ...temp, origin: guest.id };
+      await rails.sandbox.credit(me.origin, amount);
+      const seller = canonicalOrigin(String(a.seller || ''), { allowLocal });
+      let deal = await hs.propose(await makeOffer(me, { seller, skill: a.skill, task: a.task ?? {}, amount, acceptance: a.checks, deliverBy: new Date(Date.now() + minutes * 60000).toISOString() }));
+      if (deal.state !== 'accepted') return { dealId: deal.id, state: deal.state, buyer: me.origin, note: 'The seller did not accept automatically, so nothing was paid.' };
+      deal = await hs.fund(deal.id, await actionFor(me, deal, 'fund'));
+      return {
+        dealId: deal.id, state: deal.state, buyer: me.origin, seller: deal.seller,
+        paidTo: deal.state === 'released' ? 'seller' : deal.state === 'refunded' ? 'buyer (refunded)' : 'held',
+        checks: (deal.verdict?.results || []).map(r => ({ type: r.type, pass: r.pass, detail: r.detail })),
+        work: deal.delivery?.payload?.output ?? null,
+        receipts: deal.receipts.map(r => ({ seq: r.payload.seq, kind: r.payload.kind })),
+        verify: `${base}/v1/deals/${deal.id}`, note: 'Play money. The receipts are signed and public; anyone can audit them.'
+      };
+    };
+  }
+
   // ---------- A2A: Pactwire is itself an agent ----------
   const SKILLS = [
     { id: 'find_agents', name: 'Find verified agents', description: 'Search the directory of agents whose A2A front door and signing key were checked live. Data: { op: "find_agents", q, skill }.', tags: ['discovery', 'directory'] },
@@ -104,6 +131,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     { name: 'pactwire_accept_deal', op: 'accept_deal', description: 'Seller accepts a proposed deal with a signed acceptance of the exact terms hash.', inputSchema: { type: 'object', properties: { dealId: { type: 'string' }, acceptance: signedObj }, required: ['dealId', 'acceptance'] } },
     { name: 'pactwire_fund_deal', op: 'fund_deal', description: 'Buyer funds an accepted deal. The money is held, not paid, until the work passes the checks.', inputSchema: { type: 'object', properties: { dealId: { type: 'string' }, authorization: signedObj, funding: { type: 'object', description: 'Rail details, e.g. { payment_method: "pm_..." } for Stripe. Not needed for the sandbox rail.' } }, required: ['dealId', 'authorization'] } },
     { name: 'pactwire_deliver', op: 'deliver', description: 'Seller delivers the work. Pactwire runs the agreed checks at once and pays the seller or refunds the buyer.', inputSchema: { type: 'object', properties: { dealId: { type: 'string' }, delivery: signedObj }, required: ['dealId', 'delivery'] } },
+    ...(ops.sandbox_hire ? [{ name: 'pactwire_try_hire', op: 'sandbox_hire', description: 'Try a complete deal with play money, with no keys or install: hire a verified agent, hold the money, check the delivered work against your rules, then pay the seller or refund. Returns the verdicts, the work (if paid for) and the public signed receipts. Rules are deterministic checks such as {"type":"json_schema","schema":{...}}, {"type":"quotes_in_source","path":"facts","sourceTaskPath":"sourceText"}, {"type":"count_at_least","path":"facts","min":3}. Sandbox only.', inputSchema: { type: 'object', properties: { seller: { type: 'string', description: 'seller agent origin from pactwire_find_agents' }, skill: { type: 'string' }, task: { type: 'object', description: 'the job input (public)' }, priceCents: { type: 'integer', minimum: 1, maximum: 1000 }, checks: { type: 'array', items: { type: 'object' }, minItems: 1 }, minutes: { type: 'integer', minimum: 1, maximum: 60 } }, required: ['seller', 'skill', 'task', 'priceCents', 'checks'] }, annotations: { readOnlyHint: false, openWorldHint: true } }] : []),
     { name: 'pactwire_verify_receipt', op: 'verify_receipt', description: 'Check that a Pactwire receipt is genuine and unaltered.', inputSchema: { type: 'object', properties: { receipt: { type: 'object' } }, required: ['receipt'] }, annotations: { readOnlyHint: true } }
   ];
   async function mcp(request) {
@@ -113,7 +141,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     const id = rpc?.id ?? null;
     const ok = result => json({ jsonrpc: '2.0', id, result });
     const err = (code, message) => json({ jsonrpc: '2.0', id, error: { code, message } });
-    if (rpc?.method === 'initialize') return ok({ protocolVersion: rpc.params?.protocolVersion === '2025-03-26' ? '2025-03-26' : MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'pactwire', title: 'Pactwire', version: VERSION }, instructions: 'Pactwire holds payment for jobs between AI agents until the delivered work passes checks both sides signed. Start with pactwire_find_agents. Signing offers needs the agent kit; see ' + `${base}/llms.txt` });
+    if (rpc?.method === 'initialize') return ok({ protocolVersion: rpc.params?.protocolVersion === '2025-03-26' ? '2025-03-26' : MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'pactwire', title: 'Pactwire', version: VERSION }, instructions: 'Pactwire holds payment for jobs between AI agents until the delivered work passes checks both sides signed. Start with pactwire_find_agents. ' + (ops.sandbox_hire ? 'To try a whole deal with play money and no setup, use pactwire_try_hire. ' : '') + 'Real deals are signed by the buyer agent itself (agent kit or the local wallet); see ' + `${base}/llms.txt` });
     if (typeof rpc?.method === 'string' && rpc.method.startsWith('notifications/') && !Object.hasOwn(rpc, 'id')) return new Response(null, { status: 202, headers: cors });
     if (rpc?.method === 'ping') return ok({});
     if (rpc?.method === 'tools/list') return ok({ tools: TOOLS.map(({ op, ...t }) => t) });
@@ -195,6 +223,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
       const amount = Math.min(Math.max(Number.parseInt(b.amount, 10) || 1000, 1), 100_00);
       return json({ agent: agent.id, balance: await rails.sandbox.credit(agent.id, amount), note: 'Sandbox credits are play money.' });
     }
+    if (ops.sandbox_hire && p === '/v1/sandbox/hire' && m === 'POST') return json(await ops.sandbox_hire(await body(request)));
     if (sandbox && rails.sandbox && p === '/v1/sandbox/guest' && m === 'POST') { const b = await body(request); return json(await hs.registerGuest(b.publicJwk, b.name), 201); }
     if (sandbox && rails.sandbox && p === '/v1/sandbox/balance' && m === 'GET') return json({ agent: url.searchParams.get('agent'), balance: await rails.sandbox.balance(url.searchParams.get('agent') || '') });
     return json({ error: { code: 'not_found', message: 'Unknown route. See /llms.txt or /openapi.json.' } }, 404);

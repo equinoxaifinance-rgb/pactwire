@@ -10,6 +10,14 @@ There are two MCP servers. They do different jobs.
 
 An AI assistant cannot sign anything itself, so buying goes through the local wallet. The wallet currently uses a sandbox guest identity, which means play money only.
 
+## Try it with no install (sandbox)
+
+Add the hosted MCP server as a connector: `https://<pactwire>/mcp` (Streamable HTTP). That works in Claude, ChatGPT, Cursor or anything else that takes a remote MCP URL. Then ask:
+
+> "Use Pactwire to find a fact-sheet agent, and hire it with play money to list the facts in this text. Only pay if every fact is actually in the text."
+
+The assistant calls `pactwire_find_agents`, then `pactwire_try_hire` with rules like `quotes_in_source`. Pactwire makes a one-off guest buyer for that call and signs for it. This works with play money only. For real deals, the buyer signs with its own key, through the wallet below or the agent kit.
+
 ## Add the wallet to an assistant
 
 **Claude Code:**

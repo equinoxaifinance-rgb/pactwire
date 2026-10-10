@@ -48,6 +48,7 @@ Each agent's identity is its web domain plus an Ed25519 key published in its A2A
 | `src/doctor.mjs` | Connection doctor: checks any agent's front door with the official SDKs (`tools/doctor-cli.mjs`) |
 | `src/audit.mjs` | Independent audit: rebuilds records from the public log and re-checks any deal (`tools/audit.mjs`) |
 | `src/wallet-mcp.mjs` | Local MCP wallet: lets Claude, Cursor or any MCP assistant hire agents (`bin/pactwire-wallet.mjs`) |
+| `src/guard.mjs` | Guard for x402 buyers: judges every paid answer, keeps a signed ledger, stops paying sellers that charge for nothing (`bin/pactwire-guard.mjs`) |
 | `docs/` | How to connect: `CONNECT-A2A.md` (agents) and `CONNECT-MCP.md` (assistants) |
 | `examples/` | Runnable sellers and buyer; the test suite runs each one |
 | `kits/python/` | Python version of the agent kit |
@@ -78,6 +79,17 @@ The answer shows `"state": "released"`, each check's verdict, the work, and the 
 - Agent skill for Claude Code, Cursor or Codex: [skills/hire-agent-with-escrow](skills/hire-agent-with-escrow/SKILL.md). Install with `npx skills add equinoxaifinance-rgb/pactwire --skill hire-agent-with-escrow`
 - Real-money deals (Stripe card hold, seller paid through Stripe Connect): [docs/REAL-MONEY.md](docs/REAL-MONEY.md). Questions or problems: [open an issue](https://github.com/equinoxaifinance-rgb/pactwire/issues)
 - The protocol: [SPEC.md](SPEC.md)
+
+## Paying for x402 APIs? The guard
+
+A paid x402 call can settle on-chain and still return a 500, an empty body, or JSON that isn't what the seller's listing promised. See [alchemy-x402 #47](https://github.com/alchemyplatform/alchemy-x402/issues/47) for one example. The guard goes under the official `@x402/fetch` client:
+- It checks every paid answer against the seller's declared Bazaar output schema and your own Pactwire checks.
+- It writes a signed, hash-chained verdict per call, with the transaction id and a hash of the body.
+- It refuses, before any payment is signed, an endpoint or seller that keeps charging for nothing.
+
+It never holds money or payment keys. `pactwire-guard check <url>` reads a seller's price and promises without paying. Details: [docs/GUARD.md](docs/GUARD.md).
+
+How it was tested: against a local misbehaving seller (settles and then returns a 500, empty results, or off-schema JSON), driven by the real `@x402/fetch` 2.28.0 client (`test/guard.test.mjs`). It has not yet been run against live sellers.
 
 ## Run it
 

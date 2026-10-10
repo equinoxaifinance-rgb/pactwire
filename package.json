@@ -21,6 +21,9 @@
     "express": "5.1.0"
   },
   "devDependencies": {
+    "@x402/core": "2.28.0",
+    "@x402/extensions": "2.28.0",
+    "@x402/fetch": "2.28.0",
     "wrangler": "4.131.0"
   },
   "exports": {
@@ -33,7 +36,9 @@
     "./doctor": "./src/doctor.mjs",
     "./server": "./src/app.mjs",
     "./audit": "./src/audit.mjs",
-    "./wallet": "./src/wallet-mcp.mjs"
+    "./wallet": "./src/wallet-mcp.mjs",
+    "./guard": "./src/guard.mjs",
+    "./guard-file": "./src/guard-file.mjs"
   },
   "files": [
     "src/",
@@ -64,7 +69,8 @@
   "license": "MIT",
   "bin": {
     "pactwire": "bin/pactwire-wallet.mjs",
-    "pactwire-wallet": "bin/pactwire-wallet.mjs"
+    "pactwire-wallet": "bin/pactwire-wallet.mjs",
+    "pactwire-guard": "bin/pactwire-guard.mjs"
   },
   "mcpName": "io.github.equinoxaifinance-rgb/pactwire",
   "author": "Pactwire authors",

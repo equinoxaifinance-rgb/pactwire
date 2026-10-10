@@ -181,3 +181,38 @@ test('an outside auditor rebuilds records from the log and re-runs a deal\'s che
   const pub = await auditDeal(await api.deal(d1.id), audit);
   assert.equal(pub.ok, true); assert.ok(pub.findings.some(f => f.pass === null && /not visible/.test(f.what)));
 });
+
+test('track records match the log exactly, even while deals settle between reading the log and the record', async t => {
+  const { auditLog, compareRecord } = await import('../src/audit.mjs');
+  const hs = await bootPactwire();
+  const buyer = await bootAgent({ name: 'Buyer' });
+  const seller = await bootAgent({ name: 'Seller', skills: ECHO });
+  t.after(() => Promise.all([hs.close(), buyer.close(), seller.close()]));
+  const api = pactwireClient(hs.base);
+  for (const a of [buyer, seller]) await api.register(a.origin);
+  await api.faucet(buyer.origin, 1000);
+  const deal = async () => {
+    let d = await api.propose(await makeOffer(buyer.identity, { seller: seller.origin, skill: 'echo', task: {}, amount: 10, acceptance, deliverBy: inMinutes(10), dispatch: false }));
+    d = await api.fund(d.id, await actionFor(buyer.identity, d, 'fund'));
+    return d;
+  };
+  const d1 = await deal(); await api.deliver(d1.id, await actionFor(seller.identity, d1, 'deliver', { output: { echo: 'hi' } }));
+  const jwks = await api.jwks();
+  // 1. A deal whose state flipped to released before its receipt was written is not counted yet.
+  const d2 = await deal();
+  await hs.db.prepare("UPDATE deals SET state = 'released' WHERE id = ?").bind(d2.id).run();
+  const early = await api.record(seller.origin);
+  assert.equal(early.payload.sandbox.seller.settledDeals, 1, 'the record only counts settlements that are in the public log');
+  // 2. The log is read, then another deal settles, then the record is read: still an exact match up to logSeq.
+  const logBefore = (await api.log(0)).receipts;
+  const d3 = await deal(); await api.deliver(d3.id, await actionFor(seller.identity, d3, 'deliver', { output: { echo: 'hi' } }));
+  const later = await api.record(seller.origin);
+  assert.equal(later.payload.sandbox.seller.settledDeals, 2);
+  assert.ok(later.payload.logSeq > logBefore.at(-1).payload.seq);
+  const full = await auditLog((await api.log(0)).receipts, jwks);
+  assert.equal((await compareRecord(later, full, jwks)).ok, true);
+  assert.equal((await compareRecord(early, full, jwks)).ok, true, 'an older record matches the log up to its own logSeq');
+  // An inflated record is still caught.
+  later.payload.sandbox.seller.passed += 1;
+  assert.equal((await compareRecord(later, full, jwks)).ok, false);
+});

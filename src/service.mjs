@@ -121,7 +121,20 @@ export function createPactwire({ db, service, rails, allowLocal = false, resolve
 
   /** Track record built only from real deals settled through Pactwire. */
   async function agentRecord(id, { signed = true } = {}) {
-    const { results } = await db.prepare(`SELECT rail, currency, state, buyer, seller, amount, dispute FROM deals WHERE (seller = ? OR buyer = ?) AND state IN ('released', 'refunded')`).bind(id, id).all();
+    // Count from the public log itself, up to a fixed point in it, so the signed record always equals what anyone
+    // rebuilds from the log up to logSeq. (A deal's state changes a moment before its settlement receipt is written;
+    // counting from the deals table would briefly count a settlement the log does not show yet.)
+    const logSeq = (await db.prepare('SELECT MAX(seq) AS s FROM receipts').first())?.s || 0;
+    const rows = (await db.prepare(`SELECT d.id, d.rail, d.currency, d.buyer, d.seller, d.amount, r.kind, r.body FROM receipts r JOIN deals d ON d.id = r.deal_id
+      WHERE r.seq <= ? AND (d.seller = ? OR d.buyer = ?) AND r.kind IN ('deal.released', 'deal.refunded', 'deal.disputed') ORDER BY r.seq`).bind(logSeq, id, id).all()).results;
+    const byDeal = new Map();
+    for (const r of rows) {
+      const d = byDeal.get(r.id) || { rail: r.rail, currency: r.currency, buyer: r.buyer, seller: r.seller, amount: r.amount, state: null, dispute: null };
+      if (r.kind === 'deal.disputed') d.dispute = JSON.parse(r.body).payload.data.status || 'disputed';
+      else d.state = r.kind === 'deal.released' ? 'released' : 'refunded';
+      byDeal.set(r.id, d);
+    }
+    const results = [...byDeal.values()].filter(d => d.state);
     const tally = list => {
       const sold = list.filter(d => d.seller === id);
       const bought = list.filter(d => d.buyer === id);
@@ -135,8 +148,8 @@ export function createPactwire({ db, service, rails, allowLocal = false, resolve
     const real = results.filter(d => d.rail !== 'sandbox');
     const play = results.filter(d => d.rail === 'sandbox');
     const record = {
-      agent: id, asOf: iso(), ...tally(real), sandbox: tally(play),
-      basis: 'seller/buyer count only deals funded with real money and settled through Pactwire; sandbox (play money) deals are shown separately. Every deal is in the public receipt log.'
+      agent: id, asOf: iso(), logSeq, ...tally(real), sandbox: tally(play),
+      basis: 'seller/buyer count only deals funded with real money and settled through Pactwire; sandbox (play money) deals are shown separately. Counted from the public receipt log up to receipt logSeq.'
     };
     return signed ? sign(record, service.id, service.privateJwk) : record;
   }

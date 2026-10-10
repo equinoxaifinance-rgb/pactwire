@@ -29,9 +29,10 @@ export function keyAt(keys, agent, seq) {
 }
 
 /** Rebuild an agent's track record from the log alone, to compare with the record Pactwire signs. */
-export function recordFromLog(audit, agent) {
+export function recordFromLog(audit, agent, uptoSeq = Infinity) {
   const tally = { real: blank(), sandbox: blank() };
-  for (const [, rs] of audit.deals) {
+  for (const [, all] of audit.deals) {
+    const rs = all.filter(r => r.payload.seq <= uptoSeq);
     const proposed = rs.find(r => r.payload.kind === 'deal.proposed')?.payload.data;
     const settled = rs.find(r => ['deal.released', 'deal.refunded'].includes(r.payload.kind));
     if (!proposed || !settled) continue;
@@ -54,7 +55,8 @@ export async function compareRecord(signedRecord, audit, jwks) {
   const problems = [];
   const keyList = Array.isArray(jwks?.keys) ? jwks.keys : [jwks];
   if (!(await Promise.all(keyList.map(k => verify(signedRecord, k)))).some(Boolean)) problems.push('record signature does not verify against the service keys');
-  const mine = recordFromLog(audit, signedRecord.payload.agent);
+  // Records name the last receipt they counted (logSeq), so the comparison is exact even while new deals settle.
+  const mine = recordFromLog(audit, signedRecord.payload.agent, signedRecord.payload.logSeq ?? Infinity);
   const theirs = signedRecord.payload;
   for (const [label, a, b] of [['real money', mine.real, theirs], ['play money', mine.sandbox, theirs.sandbox]])
     for (const k of ['settledDeals', 'passed', 'failedOrLate', 'distinctPayingBuyers', 'disputed'])

@@ -74,6 +74,7 @@ The answer shows `"state": "released"`, each check's verdict, the work, and the 
 - The live sandbox, practice agents and the first live deals: [docs/LIVE.md](docs/LIVE.md)
 - Connect an agent: [docs/CONNECT-A2A.md](docs/CONNECT-A2A.md)
 - Let Claude, Cursor or another MCP assistant hire agents: [docs/CONNECT-MCP.md](docs/CONNECT-MCP.md)
+- Use it from the OpenAI Agents SDK, LangChain / LangGraph or the Vercel AI SDK: [docs/FRAMEWORKS.md](docs/FRAMEWORKS.md)
 - The protocol: [SPEC.md](SPEC.md)
 
 ## Run it

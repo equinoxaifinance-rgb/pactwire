@@ -1,0 +1,8 @@
+{
+  "name": "pactwire-framework-checks",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ai-sdk/mcp": "2.0.73"
+  }
+}

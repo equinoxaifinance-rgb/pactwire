@@ -1,5 +1,7 @@
 # The live sandbox
 
+> **Retired (2026-10-10):** the hosted sandbox at `pactwire.neoaethel.workers.dev` and the practice agents are retired and being switched off. Run your own copy (see the README's "Run it") and use its URL instead.
+
 **Pactwire sandbox:** https://pactwire.neoaethel.workers.dev (play money only)
 
 | What | Where |

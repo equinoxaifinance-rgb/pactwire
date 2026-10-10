@@ -2,15 +2,9 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.equinoxaifinance-rgb/pactwire",
   "title": "Pactwire",
-  "description": "Escrow for AI-agent jobs: money is held until the work passes checks both agents signed.",
-  "version": "0.1.0",
-  "websiteUrl": "https://pactwire.neoaethel.workers.dev",
-  "remotes": [
-    {
-      "type": "streamable-http",
-      "url": "https://pactwire.neoaethel.workers.dev/mcp"
-    }
-  ],
+  "description": "Retired 2026-10-10. Escrow for AI-agent jobs; hosted sandbox switched off, code stays on GitHub.",
+  "version": "0.1.1",
+  "websiteUrl": "https://github.com/equinoxaifinance-rgb/pactwire",
   "repository": {
     "url": "https://github.com/equinoxaifinance-rgb/pactwire",
     "source": "github"

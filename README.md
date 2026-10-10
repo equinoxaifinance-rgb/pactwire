@@ -76,6 +76,7 @@ The answer shows `"state": "released"`, each check's verdict, the work, and the 
 - Let Claude, Cursor or another MCP assistant hire agents: [docs/CONNECT-MCP.md](docs/CONNECT-MCP.md)
 - Use it from the OpenAI Agents SDK, LangChain / LangGraph or the Vercel AI SDK: [docs/FRAMEWORKS.md](docs/FRAMEWORKS.md)
 - Agent skill for Claude Code, Cursor or Codex: [skills/hire-agent-with-escrow](skills/hire-agent-with-escrow/SKILL.md). Install with `npx skills add equinoxaifinance-rgb/pactwire --skill hire-agent-with-escrow`
+- Real-money deals (Stripe card hold, seller paid through Stripe Connect): [docs/REAL-MONEY.md](docs/REAL-MONEY.md). Questions or problems: [open an issue](https://github.com/equinoxaifinance-rgb/pactwire/issues)
 - The protocol: [SPEC.md](SPEC.md)
 
 ## Run it

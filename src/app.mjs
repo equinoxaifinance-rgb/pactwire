@@ -9,6 +9,7 @@ import { identityExtension, createIdentity, makeOffer, actionFor } from './agent
 import { sendA2A, canonicalOrigin } from './a2a-client.mjs';
 import { CHECK_TYPES } from './checks.mjs';
 import { landingPage, llmsText, openApi } from './pages.mjs';
+import { createFunnel, refLabel, clientLabel, refererHost } from './funnel.mjs';
 
 const VERSION = '0.1.0';
 const MCP_PROTOCOL = '2025-06-18';
@@ -16,7 +17,12 @@ const MCP_PROTOCOL = '2025-06-18';
 export function createApp({ db, service, rails, baseUrl, previousKeys = [], stripeWebhookSecret = '', sandbox = true, allowLocal = false, resolveHost = null, trustProxy = false, fetchImpl = fetch, feeBps = 0, now, rateLimit = { perMinute: 120 } }) {
   const hs = createPactwire({ db, service, rails, allowLocal, resolveHost, fetchImpl, feeBps, now });
   const base = baseUrl.replace(/\/$/, '');
-  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, authorization, a2a-version, mcp-protocol-version, mcp-session-id, x-pactwire-read', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
+  const funnel = createFunnel(db, { now });
+  const ownHost = new URL(base).hostname;
+  // Our own practice agents live next to the service (pactwire-*.<same account>.workers.dev): not outside sign-ups.
+  const ownSuffix = /^[0-9.]+$|^\[/.test(ownHost) || ownHost.split('.').length < 3 ? '' : `.${ownHost.split('.').slice(1).join('.')}`;
+  const outside = origin => { try { const h = new URL(origin).hostname; return !h.endsWith('.invalid') && h !== ownHost && !(ownSuffix && h.endsWith(ownSuffix)); } catch { return false; } };
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, authorization, a2a-version, mcp-protocol-version, mcp-session-id, x-pactwire-read', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-expose-headers': 'mcp-session-id' };
   const json = (value, status = 200, headers = {}) => new Response(JSON.stringify(value, null, status === 200 ? 0 : 0), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'x-content-type-options': 'nosniff', ...cors, ...headers } });
   const errorResponse = e => {
     if (e instanceof PactwireError) return json({ error: { code: e.code, message: e.message } }, e.status);
@@ -43,7 +49,13 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
   // ---------- the operations, shared by REST, A2A and MCP ----------
   const ops = {
     find_agents: a => hs.listAgents({ q: a.q || a.query || '', skill: a.skill || '', includeUnverified: !!a.includeUnverified, limit: a.limit || 20 }),
-    register_agent: a => hs.registerAgent(a.origin),
+    register_agent: async a => {
+      let known = null;
+      try { known = await hs.getAgent(canonicalOrigin(String(a.origin || ''), { allowLocal })); } catch { /* registerAgent reports bad origins */ }
+      const result = await hs.registerAgent(a.origin);
+      if (!known && outside(result.id)) await funnel.count('signup');
+      return result;
+    },
     agent_record: a => hs.agentRecord(canonicalOrigin(a.agent, { allowLocal })),
     get_deal: a => hs.getDeal(a.dealId, a.readAuth),
     list_deals: a => hs.listDeals({ party: a.party, state: a.state }),
@@ -64,7 +76,8 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
   // for this call, gives it play money, and signs the offer and funding for it. Real-money deals never
   // work this way: there, only the buyer's own key can sign.
   if (sandbox && rails.sandbox) {
-    ops.sandbox_hire = async a => {
+    ops.sandbox_hire = async (a, ctx = {}) => {
+      await funnel.count(ctx.self ? 'self:try' : 'try');
       const amount = Number.parseInt(a.priceCents, 10);
       if (!(amount >= 1 && amount <= 1000)) throw new PactwireError('bad_price', 'priceCents must be 1 to 1000 (play money)');
       const minutes = Math.min(Math.max(Number.parseInt(a.minutes, 10) || 10, 1), 60);
@@ -109,7 +122,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
         catch (e) { return { text: `${op}: ${e.message}`, data: { op, ok: false, error: { code: e.code || 'error', message: e.message } } }; }
       }
       if (op === 'register_agent') {
-        try { return { text: 'registered', data: { op, ok: true, result: await hs.registerAgent(data.origin) } }; }
+        try { return { text: 'registered', data: { op, ok: true, result: await ops.register_agent(data) } }; }
         catch (e) { return { text: e.message, data: { op, ok: false, error: { code: e.code || 'error', message: e.message } } }; }
       }
       const q = (text || '').trim();
@@ -140,15 +153,24 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     let rpc;
     try { rpc = await body(request); } catch { return json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }, 400); }
     const id = rpc?.id ?? null;
-    const ok = result => json({ jsonrpc: '2.0', id, result });
+    const ok = (result, headers = {}) => json({ jsonrpc: '2.0', id, result }, 200, headers);
+    // The session id carries only the client's self-declared name (e.g. "claude-ai", "cursor") plus a random tag,
+    // so later tools/list and tools/call requests can be counted per client without storing anything per user.
+    const client = /^pw1\.([a-z0-9-]{1,32})\.[0-9a-f]{16}$/.exec(request.headers.get('mcp-session-id') || '')?.[1] || 'unknown';
     const err = (code, message) => json({ jsonrpc: '2.0', id, error: { code, message } });
-    if (rpc?.method === 'initialize') return ok({ protocolVersion: rpc.params?.protocolVersion === '2025-03-26' ? '2025-03-26' : MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'pactwire', title: 'Pactwire', version: VERSION }, instructions: 'Pactwire holds payment for jobs between AI agents until the delivered work passes checks both sides signed. Start with pactwire_find_agents. ' + (ops.sandbox_hire ? 'To try a whole deal with play money and no setup, use pactwire_try_hire. ' : '') + 'Real deals are signed by the buyer agent itself (agent kit or the local wallet); see ' + `${base}/llms.txt` });
+    if (rpc?.method === 'initialize') {
+      const name = clientLabel(rpc.params?.clientInfo?.name);
+      await funnel.count(`mcp_init:${name}`);
+      const tag = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
+      return ok({ protocolVersion: rpc.params?.protocolVersion === '2025-03-26' ? '2025-03-26' : MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'pactwire', title: 'Pactwire', version: VERSION }, instructions: 'Pactwire holds payment for jobs between AI agents until the delivered work passes checks both sides signed. Start with pactwire_find_agents. ' + (ops.sandbox_hire ? 'To try a whole deal with play money and no setup, use pactwire_try_hire. ' : '') + 'Real deals are signed by the buyer agent itself (agent kit or the local wallet); see ' + `${base}/llms.txt` }, { 'mcp-session-id': `pw1.${name}.${tag}` });
+    }
     if (typeof rpc?.method === 'string' && rpc.method.startsWith('notifications/') && !Object.hasOwn(rpc, 'id')) return new Response(null, { status: 202, headers: cors });
     if (rpc?.method === 'ping') return ok({});
-    if (rpc?.method === 'tools/list') return ok({ tools: TOOLS.map(({ op, ...t }) => t) });
+    if (rpc?.method === 'tools/list') { await funnel.count(`mcp_list:${client}`); return ok({ tools: TOOLS.map(({ op, ...t }) => t) }); }
     if (rpc?.method === 'tools/call') {
       const tool = TOOLS.find(t => t.name === rpc.params?.name);
       if (!tool) return err(-32602, `Unknown tool: ${String(rpc.params?.name).slice(0, 80)}`);
+      await funnel.count(`mcp_call:${client}`, `tool:${tool.name}`);
       try {
         const args = rpc.params.arguments || {};
         const result = await ops[tool.op](tool.op === 'find_agents' ? { q: args.query, skill: args.skill } : args);
@@ -170,6 +192,15 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
     const m = request.method;
     if (m === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (m === 'POST' && await limited(request)) return json({ error: { code: 'rate_limited', message: 'Too many requests; slow down.' } }, 429, { 'retry-after': '60' });
+    if (m === 'GET' && (p === '/' || p === '/llms.txt' || p === '/.well-known/agent-card.json' || p === '/.well-known/agent.json')) {
+      const ref = url.searchParams.get('ref');
+      if (ref === 'live-check') await funnel.count('self:land');
+      else {
+        const host = refererHost(request.headers.get('referer'), ownHost);
+        await funnel.count('land', ...(ref ? [`ref:${refLabel(ref)}`] : []), ...(host ? [`referer:${host}`] : []));
+      }
+    }
+    if (m === 'GET' && p === '/v1/funnel') return json(await funnel.read());
     if (a2a.match(request)) return a2a.fetch(request);
     if (p === '/mcp') return mcp(request);
     if (m === 'GET' && p === '/') return new Response(landingPage(base, sandbox), { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" } });
@@ -224,7 +255,7 @@ export function createApp({ db, service, rails, baseUrl, previousKeys = [], stri
       const amount = Math.min(Math.max(Number.parseInt(b.amount, 10) || 1000, 1), 100_00);
       return json({ agent: agent.id, balance: await rails.sandbox.credit(agent.id, amount), note: 'Sandbox credits are play money.' });
     }
-    if (ops.sandbox_hire && p === '/v1/sandbox/hire' && m === 'POST') return json(await ops.sandbox_hire(await body(request)));
+    if (ops.sandbox_hire && p === '/v1/sandbox/hire' && m === 'POST') return json(await ops.sandbox_hire(await body(request), { self: url.searchParams.get('ref') === 'live-check' }));
     if (sandbox && rails.sandbox && p === '/v1/sandbox/guest' && m === 'POST') { const b = await body(request); return json(await hs.registerGuest(b.publicJwk, b.name), 201); }
     if (sandbox && rails.sandbox && p === '/v1/sandbox/balance' && m === 'GET') return json({ agent: url.searchParams.get('agent'), balance: await rails.sandbox.balance(url.searchParams.get('agent') || '') });
     return json({ error: { code: 'not_found', message: 'Unknown route. See /llms.txt or /openapi.json.' } }, 404);

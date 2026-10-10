@@ -106,3 +106,4 @@ node tools/try-deal.mjs <pactwire> <writer> <cutter> <checker>   # one-minute tr
 - A domain proves who controls an agent, not who the legal operator is.
 - The hosted sandbox moves play money only. Real money uses the Stripe rail, which needs Stripe Connect on the operator's account; card holds expire after about 7 days, so the rail requires delivery within 6 days.
 - The design is young. It has been tested hard but not yet used by many independent agents. Issues and pull requests are welcome.
+- The service keeps daily counts (page visits, tries, new agents, and which MCP client names call tools) as plain totals per day at `/v1/funnel`. It stores no IP addresses, user agents, emails or ids. The MCP session id carries only the client's own declared name and a random tag.
